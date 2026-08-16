@@ -67,10 +67,18 @@ async def send_delivery(entitlement_id: int, order_id: Optional[int],
     exist; what is missing is that they were told, and that stays visible and
     counted as **owed** until it is fixed.
     """
-    from ..console import channels
-
     nid = await queue(order_id=order_id, entitlement_id=entitlement_id,
                       kind="delivery", channel="auto")
+    return await _attempt(nid, entitlement_id, links, base_url=base_url)
+
+
+async def _attempt(nid: int, entitlement_id: int, links: list[dict], *,
+                   base_url: str = "") -> Notification:
+    """One delivery attempt against an EXISTING notification row.
+
+    Shared by the first send and the retry sweep, so a retry updates the row
+    that recorded the failure instead of minting a parallel history."""
+    from ..console import channels
 
     row = await db.fetchrow(
         """
@@ -126,4 +134,75 @@ async def pending_and_failed() -> dict[str, int]:
         "SELECT status, count(*) AS n FROM notifications GROUP BY status")
     out = {r["status"]: int(r["n"]) for r in rows}
     out["owed"] = out.get("pending", 0) + out.get("failed", 0) + out.get("skipped_dormant", 0)
+    return out
+
+
+async def _relink(entitlement_id: int) -> list[dict]:
+    """Fresh download links for a re-send.
+
+    Tokens are stored HASHED, so the plaintext from the original attempt is
+    gone the moment that attempt fails — a retry must mint anew, it cannot
+    resend. Minting re-proves the file is on disk, which is the other thing a
+    retry must not assume."""
+    from . import delivery
+
+    rows = await db.fetch(
+        "SELECT DISTINCT ON (tier) tier, artifact_id FROM fulfilments "
+        " WHERE entitlement_id=$1 AND status='delivered' "
+        " ORDER BY tier, id DESC", entitlement_id)
+    links: list[dict] = []
+    for r in rows:
+        try:
+            t = await delivery.mint(entitlement_id, r["artifact_id"])
+        except delivery.ArtifactMissing as e:
+            log.error("notify.retry_artifact_missing",
+                      entitlement_id=entitlement_id,
+                      artifact_id=r["artifact_id"], detail=str(e)[:200])
+            continue
+        links.append({"tier": r["tier"], "artifact_id": r["artifact_id"],
+                      "token": t.token, "expires_at": t.expires_at})
+    return links
+
+
+async def retry_owed(limit: int = 20, max_attempts: int = 5) -> dict[str, int]:
+    """Re-attempt owed delivery notifications. The `commerce.notification_retry`
+    job — until 2026-08-16 that registry row had no driving code, so a failed
+    notification was counted as owed forever and retried never.
+
+    Refuses to run against a fully-dormant channel set: retrying into channels
+    known to be down would either burn the attempt budget while nothing can
+    send, or (if attempts were not counted) mint a fresh token every sweep
+    forever. The owed gauge and BuyerNotNotified alert keep the obligation
+    visible while this waits.
+    """
+    from ..console import channels
+
+    live = [c for c in await channels.available() if c["live"]]
+    if not live:
+        return {"examined": 0, "sent": 0, "still_owed": 0, "no_live_channel": 1}
+
+    rows = await db.fetch(
+        """
+        SELECT id, entitlement_id FROM notifications
+         WHERE kind = 'delivery'
+           AND status IN ('pending', 'failed', 'skipped_dormant')
+           AND entitlement_id IS NOT NULL
+           AND attempt < $2
+         ORDER BY id
+         LIMIT $1
+        """, limit, max_attempts)
+
+    sent = 0
+    for r in rows:
+        links = await _relink(r["entitlement_id"])
+        if not links:
+            await mark_failed(r["id"], "retry: no delivered fulfilment to re-link")
+            continue
+        res = await _attempt(r["id"], r["entitlement_id"], links)
+        if res.status == "sent":
+            sent += 1
+    out = {"examined": len(rows), "sent": sent,
+           "still_owed": len(rows) - sent}
+    if rows:
+        log.info("notify.retry_swept", **out)
     return out

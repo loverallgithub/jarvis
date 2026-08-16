@@ -33,6 +33,19 @@ from ..forge.verify import citation_coverage
 
 log = structlog.get_logger("market.copy")
 
+
+async def _offer_prices_minor(need_id: int) -> frozenset[int]:
+    """Every offer price for the need, for the offer-description carve-out.
+
+    The whole ladder, not just one tier — a block legitimately names its own
+    price and an upgrade tier's, and both must match the checkout's reality.
+    """
+    rows = await db.fetch(
+        "SELECT o.price_minor FROM offers o "
+        "  JOIN solutions s ON s.id = o.solution_id WHERE s.need_id = $1",
+        need_id)
+    return frozenset(int(r["price_minor"]) for r in rows)
+
 # The floor a block must clear to be stored as approved-shape copy.
 # Chosen against measured data: the phase C/D/E artifacts sit at 46–76%, so a
 # floor of 90 is a real bar rather than a rubber stamp, and copy is short enough
@@ -372,7 +385,8 @@ async def build_block(need_id: int, tier: str, block: str,
         max_tokens=900, model_param="verify_model")
 
     text = (reply or "").strip()
-    cov = citation_coverage(text)
+    cov = citation_coverage(
+        text, offer_prices_minor=await _offer_prices_minor(need_id))
     promises = service_promises(text)
     # 🔴 Copy is checked for unfinished-work markers too. Artifacts have been
     # since the beginning; copy never was, and `[Price would go here]` was
@@ -463,3 +477,34 @@ async def recopy(need_id: int, tier: Optional[str] = None,
     log.info("market.recopied", need_id=need_id, blocks=len(out),
              below_floor_only=below_floor_only)
     return out
+
+
+async def remeasure(need_id: int) -> dict[str, Any]:
+    """Re-run the coverage measurement over STORED blocks. Free — no LLM call.
+
+    Exists because the measurement itself can change (carve-outs are operator
+    decisions), and regenerating correct text to satisfy a changed metric pays
+    an LLM for work that was already right — the lesson `jpd forge repair`
+    earned on the four-word "thin" section. `approved_at` is left alone:
+    remeasuring is bookkeeping, not new copy.
+    """
+    prices = await _offer_prices_minor(need_id)
+    rows = await db.fetch(
+        "SELECT id, tier, block, body, citation_pct FROM copy_blocks "
+        " WHERE need_id=$1 ORDER BY tier, block", need_id)
+    changed, below = 0, []
+    for r in rows:
+        cov = citation_coverage(r["body"], offer_prices_minor=prices)
+        if float(cov["coverage_pct"]) != float(r["citation_pct"]):
+            changed += 1
+        await db.execute(
+            "UPDATE copy_blocks SET citation_pct=$2, citation_checkable=$3 "
+            " WHERE id=$1", r["id"], cov["coverage_pct"], cov["checkable"])
+        if cov["coverage_pct"] < COVERAGE_FLOOR:
+            below.append({"tier": r["tier"], "block": r["block"],
+                          "citation_pct": cov["coverage_pct"],
+                          "examples": cov["examples"]})
+    log.info("market.remeasured", need_id=need_id, blocks=len(rows),
+             changed=changed, below_floor=len(below))
+    return {"need_id": need_id, "blocks": len(rows), "changed": changed,
+            "below_floor": below, "floor": COVERAGE_FLOOR}

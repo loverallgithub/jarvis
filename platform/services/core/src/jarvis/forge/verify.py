@@ -356,7 +356,60 @@ def is_product_self_description(sentence: str) -> bool:
     return bool(_ABOUT_DELIVERABLE.search(s) and _PRODUCT_METRIC.search(s))
 
 
-def citation_coverage(text: str) -> dict:
+# 🔴 A SENTENCE ABOUT THE OFFER IS NOT A CLAIM ABOUT THE WORLD EITHER.
+#
+# "This is for owner-operators and small business owners (1–15 employees, no
+# dedicated finance staff)" and "€40 … a one-time purchase" state who the
+# product is sold to and what it is sold for. The research corpus can never
+# cite either — the offer did not exist when the evidence was captured — so
+# counting them as uncited asked the copy for a source that cannot exist.
+# Run 24 failed its floor on exactly this. Operator decision 2026-08-16:
+# they do not count, with the same two-condition narrowness as the
+# deliverable carve-out above:
+#
+#   audience: a targeting lead-in ("this is for …") AND a buyer noun.
+#   price:    a stated amount AND purchase vocabulary — and every amount must
+#             MATCH a real offer price passed in from offers.price_minor.
+#             A wrong price is NEVER carved out: the mechanical check is
+#             stricter than the citation it replaces, not an exemption.
+
+_OFFER_AUDIENCE_LEAD = re.compile(
+    r"(?i)\b(?:this|it)\s+(?:is|was)\s+(?:(?:designed|intended|written|built|meant)\s+)?for\b"
+    r"|\bwho\s+this\s+is\s+for\b")
+_OFFER_AUDIENCE_NOUN = re.compile(
+    r"(?i)\b(?:owner[-\s]operators?|business\s+owners?|founders?|freelancers?|"
+    r"small\s+business(?:es)?|solo\s+(?:operators?|founders?))\b")
+_OFFER_PRICE_VOCAB = re.compile(
+    r"(?i)\b(?:one[-\s]time|purchase|pric(?:e[ds]?|ing)|costs?|pay(?:ment)?|"
+    r"charged?|charges|subscription|refunds?|buy(?:ing)?|billing)\b")
+_MONEY_AMOUNT = re.compile(r"(?:€|\$|£|\b(?:EUR|USD|GBP)\b\s*)\s*(\d+(?:[.,]\d{1,2})?)")
+
+
+def _amount_minor(amount: str) -> int:
+    return round(float(amount.replace(",", ".")) * 100)
+
+
+def is_offer_description(sentence: str, *,
+                         offer_prices_minor: frozenset[int] = frozenset()) -> bool:
+    """True when a sentence states who the offer is for or what it costs.
+
+    The price arm carves out ONLY amounts that all match the live ladder —
+    passed in as `offers.price_minor` values by the caller — so copy claiming
+    a price the checkout will not honour still fails the gate it always
+    failed. With no prices passed, no price sentence is ever carved out.
+    """
+    s = sentence or ""
+    if _OFFER_AUDIENCE_LEAD.search(s) and _OFFER_AUDIENCE_NOUN.search(s):
+        return True
+    if offer_prices_minor and _OFFER_PRICE_VOCAB.search(s):
+        amounts = [_amount_minor(a) for a in _MONEY_AMOUNT.findall(s)]
+        if amounts and all(a in offer_prices_minor for a in amounts):
+            return True
+    return False
+
+
+def citation_coverage(text: str, *,
+                      offer_prices_minor: frozenset[int] = frozenset()) -> dict:
     """How much of the CHECKABLE prose actually cites something.
 
     🔴 THIS IS THE CHECK "zero uncited claims" WAS NEVER MAKING.
@@ -383,7 +436,7 @@ def citation_coverage(text: str) -> dict:
     body = _SOURCES_TAIL.sub("", text or "")
     body = _FENCE.sub(" ", body)
 
-    checkable = cited = self_described = 0
+    checkable = cited = self_described = offer_described = 0
     misses: list[str] = []
     for line in body.splitlines():
         s = line.strip()
@@ -399,6 +452,10 @@ def citation_coverage(text: str) -> dict:
             if is_product_self_description(sent):
                 self_described += 1
                 continue
+            # Same rule, same accounting: out of scope, not cited, not uncited.
+            if is_offer_description(sent, offer_prices_minor=offer_prices_minor):
+                offer_described += 1
+                continue
             checkable += 1
             # Cited if the sentence carries a marker, or the line it sits on
             # does — a bullet often cites once and then elaborates.
@@ -410,7 +467,8 @@ def citation_coverage(text: str) -> dict:
     pct = (cited / checkable * 100.0) if checkable else 100.0
     return {"checkable": checkable, "cited": cited,
             "coverage_pct": round(pct, 1), "examples": misses,
-            "self_described": self_described}
+            "self_described": self_described,
+            "offer_described": offer_described}
 
 
 async def structural(artifact_id: int) -> VerifyResult:

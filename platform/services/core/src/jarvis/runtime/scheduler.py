@@ -60,6 +60,16 @@ async def _run_artifact_sweep() -> dict:
     return await sweep()
 
 
+async def _run_notification_retry() -> dict:
+    from ..commerce.notify import retry_owed
+    out = await retry_owed()
+    # The sweep RAN — that is this job's success, the empty-expiry-sweep rule.
+    # What is still owed stays visible in the owed gauge and BuyerNotNotified,
+    # which watch the obligation; this stamp watches only the sweeping.
+    await _stamp_success("commerce.notification_retry")
+    return out
+
+
 async def _run_funnel() -> dict:
     from ..discovery.steps import run_funnel
     out = await run_funnel()
@@ -116,6 +126,7 @@ async def _run_forge() -> dict:
 DISPATCH: dict[str, Callable[[], Awaitable[dict]]] = {
     "alert.synthetic_sweep": _run_synthetic_sweep,
     "commerce.artifact_sweep": _run_artifact_sweep,
+    "commerce.notification_retry": _run_notification_retry,
     "discovery.funnel": _run_funnel,
     "research.dossier": _run_research,
     "forge.build": _run_forge,

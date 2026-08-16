@@ -199,10 +199,15 @@ def page_state(data: dict[str, Any]) -> dict[str, Any]:
     nobody noticed until a page was read by hand.
     """
     tiers = [t for t in TIER_ORDER if t in data["blocks"]]
-    # Coverage of the page as rendered, not of the blocks in isolation.
+    # Coverage of the page as rendered, not of the blocks in isolation. The
+    # whole ladder's prices feed the offer-description carve-out — the page
+    # names all three, and each must match the checkout's reality.
+    prices = frozenset(int(o["price_minor"]) for o in data["offers"].values()
+                       if o.get("price_minor") is not None)
     pct = citation_coverage(
         "\n".join(b["body"] for tb in data["blocks"].values()
-                  for b in tb.values()))["coverage_pct"]
+                  for b in tb.values()),
+        offer_prices_minor=prices)["coverage_pct"]
     sellable = [t for t in tiers
                 if (data["offers"].get(t) or {}).get("live")
                 and (data["offers"].get(t) or {}).get("checkout_url")]

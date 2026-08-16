@@ -208,3 +208,59 @@ def test_removing_the_noun_did_not_gut_the_vocabulary():
                  "Typically the close takes longer than reported.",
                  "According to industry benchmarks it is slower."):
         assert citation_coverage(sent)["checkable"] == 1, sent
+
+
+# ── the offer-description carve-out ────────────────────────────────────────
+# Operator decision, 2026-08-16. Run 24 failed its floor on two sentences the
+# research corpus can never cite: who the product is FOR and what it COSTS.
+# Both describe the OFFER, not the world — the offer did not exist when the
+# evidence was captured. Same accounting as the deliverable carve-out:
+# excluded from the denominator, never counted as cited.
+#
+# The price arm is STRICTER than the citation it replaces: an amount is carved
+# out only when it matches offers.price_minor, passed in by the caller — a
+# wrong price still fails.
+
+def test_an_audience_targeting_sentence_is_out_of_scope():
+    c = citation_coverage(
+        "This is for owner-operators and small business owners (1–15 employees, "
+        "no dedicated finance staff) who are locked out of an AP platform.")
+    assert c["checkable"] == 0
+    assert c["offer_described"] == 1
+
+
+def test_a_price_matching_the_offer_is_out_of_scope():
+    c = citation_coverage(
+        "The full manual costs €40 and is a one-time purchase.",
+        offer_prices_minor=frozenset({4000}))
+    assert c["checkable"] == 0
+    assert c["offer_described"] == 1
+
+
+def test_a_price_with_no_offer_passed_still_counts():
+    """The carve-out is opt-in per call site. The forge's artifact path passes
+    no prices, so nothing there changes behaviour by accident."""
+    c = citation_coverage("The full manual costs €40 and is a one-time purchase.")
+    assert c["checkable"] == 1 and c["cited"] == 0
+
+
+def test_a_WRONG_price_is_never_carved_out():
+    """The mechanical check is stricter than the citation it replaces — copy
+    claiming a price the checkout will not honour still fails."""
+    c = citation_coverage(
+        "The full manual costs €45 and is a one-time purchase.",
+        offer_prices_minor=frozenset({4000}))
+    assert c["checkable"] == 1 and c["cited"] == 0
+
+
+def test_a_world_claim_survives_offer_prices_being_passed():
+    c = citation_coverage("Most vendors decline to publish a price.",
+                          offer_prices_minor=frozenset({4000}))
+    assert c["checkable"] == 1
+
+
+def test_a_decimal_price_matches_its_minor_units():
+    c = citation_coverage("You pay €3.50 once — a one-time purchase.",
+                          offer_prices_minor=frozenset({350}))
+    assert c["checkable"] == 0
+    assert c["offer_described"] == 1

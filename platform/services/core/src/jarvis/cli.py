@@ -1194,6 +1194,26 @@ async def cmd_market_recopy(args) -> int:
     return 0 if not (still_low or promising or unfinished) else 1
 
 
+async def cmd_market_remeasure(args) -> int:
+    """Re-run the coverage measurement over stored blocks. Free."""
+    from .market import copy as mcopy
+    out = await mcopy.remeasure(args.need_id)
+    if not out["blocks"]:
+        _p(f"{YEL}no copy blocks for need {args.need_id}{RST}")
+        return 1
+    _p(f"{BOLD}remeasured{RST} {out['blocks']} block(s)  "
+       f"{out['changed']} changed  {DIM}floor {out['floor']:.0f}%{RST}")
+    if out["below_floor"]:
+        _p("")
+        for b in out["below_floor"]:
+            _p(f"  {RED}{b['citation_pct']:>5.1f}%{RST}  {b['tier']:<13} {b['block']}")
+            for ex in (b.get("examples") or [])[:2]:
+                _p(f"      {DIM}uncited: {ex[:96]}{RST}")
+        return 1
+    _p(f"  {GRN}every block clears the floor{RST}")
+    return 0
+
+
 async def cmd_market_show(args) -> int:
     """Read-only. What copy exists, and whether it cites itself."""
     pos = await db.fetchrow(
@@ -1713,6 +1733,10 @@ def build_parser() -> argparse.ArgumentParser:
     mr.add_argument("--below-floor", action="store_true", dest="below_floor",
                     help="only blocks under the coverage floor")
     mr.set_defaults(fn=cmd_market_recopy)
+    mm = mk.add_parser("remeasure",
+                       help="re-run coverage over stored blocks (free) — for "
+                            "when the MEASUREMENT changed, not the copy")
+    mm.add_argument("need_id", type=int); mm.set_defaults(fn=cmd_market_remeasure)
     ml = mk.add_parser("launch", help="F5b — plan outreach; NEVER sends")
     ml.add_argument("need_id", type=int); ml.set_defaults(fn=cmd_market_launch)
 
