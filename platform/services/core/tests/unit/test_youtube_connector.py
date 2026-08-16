@@ -294,7 +294,8 @@ async def test_all_six_source_rows_now_have_an_implementation():
     from jarvis.connectors import registry
 
     for name in ("yt_alex_hormozi", "yt_leila_hormozi", "yt_codie_sanchez",
-                 "yt_liam_ottley", "yt_liam_evans", "yt_jack_roberts"):
+                 "yt_liam_ottley", "yt_liam_evans", "yt_jack_roberts",
+                 "yt_nick_saraev", "yt_my_first_million"):
         assert registry.has(name), f"{name} still has no implementation"
         assert registry.get(name).source_type == "authority"
 

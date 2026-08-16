@@ -24,7 +24,7 @@ it is not an excuse to ship connectors that were never going to work.
                             silently returning zero for ever.
     ollama / qdrant    401  reachable via nginx but need API keys.
 
-    yt_* (six)          —   ⚠️ NOT probed from this host: no YouTube Data API
+    yt_* (eight)        —   ⚠️ NOT probed from this host: no YouTube Data API
                             v3 key exists here yet (HT-002). They ship DORMANT
                             and cannot reach `live` until a real key passes
                             `youtube_data_v3`'s contract test. Written against
@@ -783,6 +783,14 @@ class YtJackRoberts(YouTubeChannel):
     name = "yt_jack_roberts"
 
 
+class YtNickSaraev(YouTubeChannel):
+    name = "yt_nick_saraev"
+
+
+class YtMyFirstMillion(YouTubeChannel):
+    name = "yt_my_first_million"
+
+
 # ---------------------------------------------------------------------------
 # known-blocked, kept explicit
 # ---------------------------------------------------------------------------
@@ -935,4 +943,5 @@ ALL: tuple[type[HttpSource], ...] = (
     AppStoreReviews, ProductHunt, IndieHackers, Reddit,
     YtAlexHormozi, YtLeilaHormozi, YtCodieSanchez,
     YtLiamOttley, YtLiamEvans, YtJackRoberts,
+    YtNickSaraev, YtMyFirstMillion,
 )

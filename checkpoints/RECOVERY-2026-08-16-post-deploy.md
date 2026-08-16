@@ -73,3 +73,15 @@ Repo at /opt/jarvis (created 2026-08-16 for /ultrareview).
 out). Secrets are gitignored (.env*, settings.local.json). Ultrareview of the
 branch was suggested to the operator; launch state unknown at write time —
 check with the operator, not this file.
+
+## UPDATE 2026-08-16 ~10:17 UTC — NEXT-STEPS task 2 (YouTube) COMPLETE
+- JPD_YOUTUBE_API_KEY installed by operator; `jpd connectors check youtube_data_v3` → live.
+- All six yt_* handles set via UPDATE on sources.config:
+  @AlexHormozi, @leilahormozi, @CodieSanchezCT, @LiamOttley, @liamevansyt, @Itssssss_Jack
+- All six harvested successfully (uploads playlists cached): 144 admissible signals stored
+  (alex 25, leila 24, codie 20, ottley 25, evans 25, jack 25).
+- `jpd connectors` now 20/33 live; no yt_* rows in orphans output.
+- Operator also supplied @nicksaraev and @MyFirstMillionPod — NO source rows exist for
+  these; not added (would need a decision to expand the authority roster).
+- Acceptance predicate to re-verify: `jpd connectors check youtube_data_v3` and
+  `jpd connectors harvest yt_alex_hormozi` (>0 signals).
