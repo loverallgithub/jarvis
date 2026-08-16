@@ -304,7 +304,9 @@ async def test_all_six_source_rows_now_have_an_implementation():
                  "yt_mark_kashef", "yt_rob_the_ai_guy", "yt_its_keaton",
                  "yt_solopreneur", "yt_financial_news_oraat",
                  "yt_mark_j_kohler", "yt_life_insurance_academy",
-                 "yt_simon_squibb", "yt_diary_of_a_ceo"):
+                 "yt_simon_squibb", "yt_diary_of_a_ceo",
+                 # migration 021
+                 "yt_greg_isenberg", "yt_this_week_in_startups"):
         assert registry.has(name), f"{name} still has no implementation"
         assert registry.get(name).source_type == "authority"
 

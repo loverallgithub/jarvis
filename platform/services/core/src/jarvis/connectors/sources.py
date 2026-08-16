@@ -502,6 +502,94 @@ class ProductHunt(RssSource):
     probe_url = "https://www.producthunt.com/feed"
 
 
+class GregsLetter(RssSource):
+    """Greg Isenberg's newsletter — Substack, so the standard /feed works.
+
+    Probed from this VPS 2026-08-16: `latecheckout.substack.com/feed` returns
+    200 `application/xml` (376KB of real RSS) under the project UA. The
+    operator asked for "Greg's Letter (gregisenberg.com)" but gregisenberg.com
+    is a Framer SPA with no feed and no autodiscovery link — the newsletter
+    itself lives on Substack, verified via its own archive pages.
+
+    `authority` on purpose: a creator newsletter is opinions, amplified — the
+    same class as the yt_* channels, and it cannot self-corroborate the
+    cross-source gate any more than they can.
+    """
+    name = "gregs_letter"
+    kind = "rss"
+    source_type = "authority"
+    platform = "substack"
+    feed_url = "https://latecheckout.substack.com/feed"
+    probe_url = "https://latecheckout.substack.com/feed"
+
+
+class AppSumo(HttpSource):
+    """AppSumo deals — the JSON API behind the SPA, not the HTML.
+
+    Probed from this VPS 2026-08-16. The obvious paths are the SPA trap the
+    IndieHackers post-mortem warns about (`/rss/` returns 200 with 195KB of
+    HTML); the real endpoint is `/api/v2/deals/` — 200 `application/json`,
+    4,211 deals across 422 pages, `per_page` honoured up to at least 50, and
+    it answers to the project's declared UA.
+
+    ⚠️ `ordering`/`sort` params are silently IGNORED (verified: identical
+    first page for three different values), so recency cannot be requested —
+    the page is a mixed bag and current deals are found by filtering
+    `has_started AND NOT has_ended AND is_active` client-side.
+    """
+    name = "appsumo"
+    kind = "api"
+    source_type = "launch"
+    probe_url = "https://appsumo.com/api/v2/deals/?page=1&per_page=1"
+
+    async def call(self, limit: int = 25, **kw: Any) -> HarvestResult:
+        async with self._client() as c:
+            r = await c.get("https://appsumo.com/api/v2/deals/",
+                            params={"page": 1, "per_page": 50})
+        if r.status_code != 200:
+            raise ConnectorError(f"appsumo /api/v2/deals -> {r.status_code}")
+        try:
+            body = r.json()
+        except ValueError as e:
+            raise ConnectorError(f"appsumo: not JSON: {e}") from None
+
+        deals = body.get("deals")
+        if deals is None:
+            raise ConnectorError(
+                f"appsumo: response has no 'deals'; keys={list(body)[:6]}")
+
+        out: list[Signal] = []
+        for d in deals:
+            if not (d.get("has_started") and not d.get("has_ended")
+                    and d.get("is_active")):
+                continue
+            name = (d.get("public_name") or "").strip()
+            slug = (d.get("slug") or "").strip()
+            if not name or not slug:
+                continue
+            feats = "; ".join(
+                f.get("feature", "") for f in (d.get("features") or [])[:6]
+                if f.get("feature"))
+            review = d.get("deal_review") or {}
+            review_txt = (f"{review.get('review_count')} reviews, "
+                          f"avg {review.get('average_rating')}"
+                          if review.get("review_count") else "")
+            path = d.get("get_absolute_url") or f"/products/{slug}/"
+            out.append(Signal(
+                external_id=slug,
+                concept=name[:300],
+                body="\n".join(x for x in (name, feats, review_txt) if x)[:2000],
+                source_type=self.source_type,
+                url=f"https://appsumo.com{path}",
+                observed_at=_iso((d.get("dates") or {}).get("start_date")),
+                raw={"deal_id": d.get("id"), "price": d.get("price"),
+                     "original_price": d.get("original_price")}))
+            if len(out) >= limit:
+                break
+        return HarvestResult(self.name, out,
+                             f"{len(out)} live deals of {len(deals)} in page")
+
+
 # ---------------------------------------------------------------------------
 # authority — YouTube Data API v3 (HT-002)
 # ---------------------------------------------------------------------------
@@ -871,6 +959,18 @@ class YtDiaryOfACeo(YouTubeChannel):
     name = "yt_diary_of_a_ceo"
 
 
+class YtGregIsenberg(YouTubeChannel):
+    name = "yt_greg_isenberg"
+
+
+class YtThisWeekInStartups(YouTubeChannel):
+    # 🔴 Seeded by channel_id, not handle — @thisweekinstartups on YouTube is
+    # a 1,980-subscriber SQUATTER, verified via the API 2026-08-16. The real
+    # channel (353K subs) is UCkkhmBWfS7pILYIk0izkc3A, whose handle is
+    # @startups. Exactly the wrong-channel trap `_identity` exists to prevent.
+    name = "yt_this_week_in_startups"
+
+
 # ---------------------------------------------------------------------------
 # known-blocked, kept explicit
 # ---------------------------------------------------------------------------
@@ -1029,4 +1129,5 @@ ALL: tuple[type[HttpSource], ...] = (
     YtSharran, YtBradSugars, YtJoannaWiebe, YtMarkKashef,
     YtRobTheAiGuy, YtItsKeaton, YtSolopreneur, YtFinancialNewsOraat,
     YtMarkJKohler, YtLifeInsuranceAcademy, YtSimonSquibb, YtDiaryOfACeo,
+    YtGregIsenberg, YtThisWeekInStartups, GregsLetter, AppSumo,
 )
