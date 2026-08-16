@@ -1,7 +1,7 @@
 Product,Category,API?,Auth,Docs URL,Verified,Live Credential?,JPD Role,Priority,Notes
 Databar,Research/Enrichment,Yes,x-apikey,docs.databar.ai/api-reference/introduction,2026-07-20 200,No,"Company-voice enrichment (A5); competitor data (B1)",P1,"160+ providers. REST + Python SDK + MCP. Best research fit."
 you.com Research,Research,Yes,Bearer,api.you.com,2026-07-20,No,"Competitive capture (B1); willingness-to-pay (B3)",P1,"lite = $0.012/call. $100 free credit. Highest-value unwired tool."
-TubeOnAI,Discovery/Authority,Unverified,Unknown,none found,2026-08-07 api host real (200 root / 404 nonsense),No,"Authority-source transport accelerator (A1c)",P1,"api.tubeonai.com discriminates paths = real API. NO published docs. Ships DORMANT until contract_test passes."
+TubeOnAI,Discovery/Authority,Unverified,Unknown,none found,2026-08-07 api host real; 2026-08-16 API DOCS FOUND at help.tubeonai.com (app.tubeonai.com base + pk_live_* key),No,"Authority-source transport accelerator (A1c)",P1,"api.tubeonai.com discriminates paths = real API. NO published docs. Ships DORMANT until contract_test passes."
 YouTube Data API v3,Discovery/Authority,Yes,API key,developers.google.com/youtube/v3,Standard,No,"Authority harvest (A1b)",P0,"Needs Google Cloud project. Runbook HT-002."
 GoHighLevel,Commerce/CRM,Yes,Private Integrations key,highlevel.stoplight.io,2026-08-07 live,Yes,"Offers/checkout/contacts. NEW STORE for JPD",P0,"Tenant co-tenanted with unrelated business - filter all queries."
 Stripe,Commerce,Yes,Bearer,stripe.com/docs/api,Standard,Via GHL,"Payment provider (same account as Pimlico)",P0,"Decision 2026-08-07: same account, new GHL store."

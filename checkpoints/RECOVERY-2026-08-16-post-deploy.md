@@ -85,3 +85,60 @@ check with the operator, not this file.
   these; not added (would need a decision to expand the authority roster).
 - Acceptance predicate to re-verify: `jpd connectors check youtube_data_v3` and
   `jpd connectors harvest yt_alex_hormozi` (>0 signals).
+
+## UPDATE 2026-08-16 ~10:27 UTC — authority roster expanded to 8, v79 DEPLOYED
+- Operator decision: add Nick Saraev and My First Million as authority sources.
+- Commit 5ef1422 on session/2026-08-16-scheduler-and-carveout: YtNickSaraev +
+  YtMyFirstMillion subclasses, migration 019 (seeds both rows WITH handles),
+  wiring test extended to eight. Full unit suite green in-image (126 tests).
+- Deployed core=v79 (commerce stays v4, journey tests not triggered).
+  Migration 019 applied. All services converged, /ready green, 1/1.
+- Both new connectors live and harvested: yt_nick_saraev 24 admissible,
+  yt_my_first_million 25 admissible. Roster now 22/35 live, no yt_* orphans.
+- FIXED: platform/docker/.env line 23 was malformed (YouTube key line had a
+  pasted ` jarvis_core` fragment after the quoted value) — `source .env`
+  failed, which would have aborted any deploy. Repaired in place, key intact.
+
+## UPDATE 2026-08-16 ~10:30 UTC — forge reverify 13 & 14 run via OpenRouter fallback
+- Anthropic cap still in place (resets 2026-09-01); every verify call failed over
+  to OpenRouter automatically (anthropic/claude-haiku-4.5). No config change.
+- Need 13: 14/14 claims supported — 3/3 tiers OFFERABLE (roadmap, instructions,
+  deployed). Sales page remains publishable.
+- Need 14: 7/14 supported — 0/3 offerable, all tiers withheld. The 7 failures are
+  all 'gap' (negative) claims and the verifier is WORKING, not broken:
+  claims 5 and 7 are outright contradicted by their own sources; the other five
+  are "absence of X cannot be verified from this excerpt". Upstream claim-shape /
+  evidence problem — needs forge repair or regeneration, not another reverify.
+
+## UPDATE 2026-08-16 ~10:4x UTC — v80 DEPLOYED, authority roster now 28, all verified
+- Commit 53389f6: batch-2 expansion (20 operator-selected channels), migration 020.
+- Deploy verified: core + console on jarvis/core:v80, migration 020 applied,
+  28 yt_* rows in sources.
+- ALL 20 new connectors live and harvested with >0 signals; every handle
+  resolved to a real channel; all 28 rows now have uploads_playlist_id cached
+  (1-unit path from here on). Lowest admissible: yt_simon_squibb 22/25 — just
+  Deleted/Private-video filtering, not a fault.
+- Roster: 42/55 live, 0 yt_* orphans. Authority sweep total ~688 admissible
+  signals across 28 channels.
+
+## UPDATE 2026-08-16 ~11:0x UTC — scan-source expansion built (commit 2c1a035), AWAITING v81 DEPLOY
+- Added (code + migration 021, tested green in jarvis/core:v81):
+  yt_greg_isenberg (handle verified, 695K subs), yt_this_week_in_startups
+  (seeded by channel_id UCkkhmBWfS7pILYIk0izkc3A — @thisweekinstartups is a
+  1,980-sub SQUATTER, do not use the handle), gregs_letter (Substack RSS
+  latecheckout.substack.com/feed; gregisenberg.com itself is a feedless Framer
+  SPA), appsumo (/api/v2/deals/ JSON; per_page<=50 honoured, ordering params
+  silently ignored, filter has_started AND NOT has_ended client-side).
+- NOT added, probed 2026-08-16: trends_vc (Cloudflare 403 all paths from this
+  IP — reddit-class block), exploding_topics (no public RSS; paid API needs a
+  credential decision), indie_hackers MRR (SPA shell, needs browser transport).
+  product_hunt already live.
+- TubeOnAI: API DOCS NOW EXIST (they did not on 2026-08-07) —
+  help.tubeonai.com "TubeOnAI API Documentation". Base https://app.tubeonai.com,
+  Bearer key from web.tubeonai.com Settings > Developer Features (pk_live_*,
+  shown once), POST /summaries {url, type: youtube, webhook_url...},
+  GET /summaries/{id}, 60 req/min. Integration = operator gets key, install as
+  JPD_TUBEONAI_KEY, then implement connector + contract_test per A1c
+  (paraphrase flag mandatory; barred from claims).
+- NEXT: deploy v81, then check+harvest yt_greg_isenberg, yt_this_week_in_startups,
+  gregs_letter, appsumo.
