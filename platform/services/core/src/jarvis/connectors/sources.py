@@ -24,7 +24,7 @@ it is not an excuse to ship connectors that were never going to work.
                             silently returning zero for ever.
     ollama / qdrant    401  reachable via nginx but need API keys.
 
-    yt_* (eight)        —   ⚠️ NOT probed from this host: no YouTube Data API
+    yt_* (28)           —   ⚠️ NOT probed from this host: no YouTube Data API
                             v3 key exists here yet (HT-002). They ship DORMANT
                             and cannot reach `live` until a real key passes
                             `youtube_data_v3`'s contract test. Written against
@@ -791,6 +791,86 @@ class YtMyFirstMillion(YouTubeChannel):
     name = "yt_my_first_million"
 
 
+class YtJulianGoldie(YouTubeChannel):
+    name = "yt_julian_goldie"
+
+
+class YtAffiliateMarketingDude(YouTubeChannel):
+    name = "yt_affiliate_marketing_dude"
+
+
+class YtSimplilearn(YouTubeChannel):
+    name = "yt_simplilearn"
+
+
+class YtChaseHAi(YouTubeChannel):
+    name = "yt_chase_h_ai"
+
+
+class YtStarterStory(YouTubeChannel):
+    name = "yt_starter_story"
+
+
+class YtShaneHummus(YouTubeChannel):
+    name = "yt_shane_hummus"
+
+
+class YtHeygen(YouTubeChannel):
+    name = "yt_heygen"
+
+
+class YtNpoStart(YouTubeChannel):
+    name = "yt_npo_start"
+
+
+class YtSharran(YouTubeChannel):
+    name = "yt_sharran"
+
+
+class YtBradSugars(YouTubeChannel):
+    name = "yt_brad_sugars"
+
+
+class YtJoannaWiebe(YouTubeChannel):
+    name = "yt_joanna_wiebe"
+
+
+class YtMarkKashef(YouTubeChannel):
+    name = "yt_mark_kashef"
+
+
+class YtRobTheAiGuy(YouTubeChannel):
+    name = "yt_rob_the_ai_guy"
+
+
+class YtItsKeaton(YouTubeChannel):
+    name = "yt_its_keaton"
+
+
+class YtSolopreneur(YouTubeChannel):
+    name = "yt_solopreneur"
+
+
+class YtFinancialNewsOraat(YouTubeChannel):
+    name = "yt_financial_news_oraat"
+
+
+class YtMarkJKohler(YouTubeChannel):
+    name = "yt_mark_j_kohler"
+
+
+class YtLifeInsuranceAcademy(YouTubeChannel):
+    name = "yt_life_insurance_academy"
+
+
+class YtSimonSquibb(YouTubeChannel):
+    name = "yt_simon_squibb"
+
+
+class YtDiaryOfACeo(YouTubeChannel):
+    name = "yt_diary_of_a_ceo"
+
+
 # ---------------------------------------------------------------------------
 # known-blocked, kept explicit
 # ---------------------------------------------------------------------------
@@ -944,4 +1024,9 @@ ALL: tuple[type[HttpSource], ...] = (
     YtAlexHormozi, YtLeilaHormozi, YtCodieSanchez,
     YtLiamOttley, YtLiamEvans, YtJackRoberts,
     YtNickSaraev, YtMyFirstMillion,
+    YtJulianGoldie, YtAffiliateMarketingDude, YtSimplilearn, YtChaseHAi,
+    YtStarterStory, YtShaneHummus, YtHeygen, YtNpoStart,
+    YtSharran, YtBradSugars, YtJoannaWiebe, YtMarkKashef,
+    YtRobTheAiGuy, YtItsKeaton, YtSolopreneur, YtFinancialNewsOraat,
+    YtMarkJKohler, YtLifeInsuranceAcademy, YtSimonSquibb, YtDiaryOfACeo,
 )

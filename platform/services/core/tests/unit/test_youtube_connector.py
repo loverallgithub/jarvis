@@ -295,7 +295,16 @@ async def test_all_six_source_rows_now_have_an_implementation():
 
     for name in ("yt_alex_hormozi", "yt_leila_hormozi", "yt_codie_sanchez",
                  "yt_liam_ottley", "yt_liam_evans", "yt_jack_roberts",
-                 "yt_nick_saraev", "yt_my_first_million"):
+                 "yt_nick_saraev", "yt_my_first_million",
+                 # batch 2 — migration 020, operator roster expansion
+                 "yt_julian_goldie", "yt_affiliate_marketing_dude",
+                 "yt_simplilearn", "yt_chase_h_ai", "yt_starter_story",
+                 "yt_shane_hummus", "yt_heygen", "yt_npo_start",
+                 "yt_sharran", "yt_brad_sugars", "yt_joanna_wiebe",
+                 "yt_mark_kashef", "yt_rob_the_ai_guy", "yt_its_keaton",
+                 "yt_solopreneur", "yt_financial_news_oraat",
+                 "yt_mark_j_kohler", "yt_life_insurance_academy",
+                 "yt_simon_squibb", "yt_diary_of_a_ceo"):
         assert registry.has(name), f"{name} still has no implementation"
         assert registry.get(name).source_type == "authority"
 
