@@ -1,0 +1,467 @@
+# ===========================================================================
+# JarvisProductDevelopment — build phase 0 stack
+#
+# Parallel to and independent of Pimlico. Its own overlay network, its own
+# volumes, its own ports. Nothing here touches pimlico_*.
+#
+# ⚠️ Deploy rules carried from Pimlico, each earned:
+#   · Deploy with the EXPLICIT VERSION TAG. `service update --image repo:latest`
+#     rolls NOTHING when the spec already says `:latest` — it is a silent no-op
+#     that looks like a successful deploy.
+#   · `service update --force` does NOT re-read env_file. Use --env-add.
+#   · Re-apply the firewall AFTER any port change, then re-probe from a
+#     TEST-NET-3 source with a known-open control port. ufw does not cover
+#     Docker-published ports, and probing from the host itself proves nothing
+#     (packets take OUTPUT, never FORWARD).
+# ===========================================================================
+version: "3.8"
+
+networks:
+  jarvis_net:
+    driver: overlay
+    attachable: true
+  jarvis_monitoring:
+    driver: overlay
+    attachable: true
+
+volumes:
+  jarvis_pg_data:
+  jarvis_redis_data:
+  jarvis_artifacts:
+  jarvis_prom_data:
+  jarvis_am_data:
+
+secrets:
+  jarvis_pg_password:
+    external: true
+    name: jarvis_pg_password_v1
+
+services:
+
+  # -------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      # ⚠️ POSTGRES_PASSWORD applies ONLY at initdb, on an EMPTY data dir.
+      # Changing it later does nothing, and a local `psql` will still succeed
+      # regardless because pg_hba trusts local connections — so never conclude
+      # from a local test that the password is correct.
+      POSTGRES_USER: jarvis
+      POSTGRES_DB: jarvis
+      POSTGRES_PASSWORD_FILE: /run/secrets/jarvis_pg_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    secrets:
+      - jarvis_pg_password
+    volumes:
+      - jarvis_pg_data:/var/lib/postgresql/data
+    networks: [jarvis_net]
+    ports:
+      - target: 5432
+        published: 5632
+        protocol: tcp
+        mode: host          # host mode so the published port is bound on the
+                            # node, not routed through ingress — makes the
+                            # netns exposure probe meaningful.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jarvis -d jarvis"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+      restart_policy:
+        condition: any
+        delay: 10s
+
+  # -------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --requirepass
+      - "${JARVIS_REDIS_PASSWORD:?JARVIS_REDIS_PASSWORD must be set}"
+    volumes:
+      - jarvis_redis_data:/data
+    networks: [jarvis_net]
+    ports:
+      - target: 6379
+        published: 6581
+        protocol: tcp
+        mode: host
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    environment:
+      REDIS_PASSWORD: "${JARVIS_REDIS_PASSWORD}"
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+      restart_policy:
+        condition: any
+        delay: 10s
+
+  # -------------------------------------------------------------------------
+  core:
+    image: jarvis/core:v1
+    environment:
+      JPD_SERVICE: jarvis-core
+      JPD_ENV: production
+      JPD_PG_HOST: postgres
+      JPD_PG_PORT: "5432"
+      JPD_PG_USER: jarvis
+      JPD_PG_DB: jarvis
+      JPD_PG_PASSWORD_FILE: /run/secrets/jarvis_pg_password
+      JPD_REDIS_URL: "redis://:${JARVIS_REDIS_PASSWORD}@redis:6379/0"
+      JPD_PACKAGE_ROOT: /app
+      JPD_ARTIFACT_DIR: /app/data/artifacts
+      # Credentials sourced from the Pimlico stack — same keys, same accounts.
+      # A second key to rotate is a second key to forget.
+      JPD_OLLAMA_URL: "${JPD_OLLAMA_URL:-}"
+      JPD_OLLAMA_API_KEY: "${JPD_OLLAMA_API_KEY:-CHANGE_ME}"
+      JPD_QDRANT_URL: "${JPD_QDRANT_URL:-}"
+      JPD_QDRANT_API_KEY: "${JPD_QDRANT_API_KEY:-CHANGE_ME}"
+      JPD_ANTHROPIC_API_KEY: "${JPD_ANTHROPIC_API_KEY:-CHANGE_ME}"
+      JPD_OPENROUTER_KEY: "${JPD_OPENROUTER_KEY:-CHANGE_ME}"
+      JPD_OPENROUTER_MODEL: "${JPD_OPENROUTER_MODEL:-}"
+      # GHL — DEC-002: same tenant, same Stripe account, NEW STORE for JPD.
+      # 🔴 Declared on core, commerce AND console. The console needs them because
+      # `jpd` prefers that container (C7), so `jpd commerce contract-test` runs
+      # THERE — and without credentials its probe fails and `record_probe` walks
+      # a perfectly healthy provider toward dormant. Observed 2026-08-09:
+      # fail_streak reached 2 purely because the CLI could not see the key.
+      JPD_GHL_API_KEY: "${JPD_GHL_API_KEY:-CHANGE_ME}"
+      JPD_GHL_LOCATION_ID: "${JPD_GHL_LOCATION_ID:-}"
+      JPD_GHL_STORE_ID: "${JPD_GHL_STORE_ID:-CHANGE_ME}"
+      JPD_GHL_CHECKOUT_BASE: "${JPD_GHL_CHECKOUT_BASE:-}"
+      JPD_GHL_WEBHOOK_SECRET: "${JPD_GHL_WEBHOOK_SECRET:-CHANGE_ME}"
+      JPD_UNSUBSCRIBE_BASE: "${JPD_UNSUBSCRIBE_BASE:-}"
+      # Source + buyer-delivery credentials. Empty by default: the connectors
+      # stay dormant-with-a-reason until the operator provides them. Declared
+      # here AND on console for the same C7 reason as GHL above — probes run
+      # in whichever container serves `jpd`.
+      JPD_YOUTUBE_API_KEY: "${JPD_YOUTUBE_API_KEY:-}"
+      JPD_REDDIT_CLIENT_ID: "${JPD_REDDIT_CLIENT_ID:-}"
+      JPD_REDDIT_CLIENT_SECRET: "${JPD_REDDIT_CLIENT_SECRET:-}"
+      JPD_MAILGUN_KEY: "${JPD_MAILGUN_KEY:-}"
+      JPD_MAILGUN_DOMAIN: "${JPD_MAILGUN_DOMAIN:-}"
+    secrets:
+      - jarvis_pg_password
+    volumes:
+      - jarvis_artifacts:/app/data/artifacts
+      # The generated CHECKPOINT.md must land on the HOST, where the next
+      # session (human or agent) will look for it. A checkpoint that only
+      # exists inside a container is not a recovery mechanism.
+      - type: bind
+        source: /opt/jarvis/checkpoints
+        target: /opt/jarvis/checkpoints
+    networks: [jarvis_net, jarvis_monitoring]
+    ports:
+      # ⚠️ INGRESS, not host mode — and that is a deliberate reversal.
+      #
+      # host mode binds the port directly on the node, so on this SINGLE-NODE
+      # swarm the old task still holds 8900 while `order: start-first` tries to
+      # place the new one, and the roll deadlocks with
+      # "no suitable node (host-mode port already in use on 1 node)".
+      #
+      # Zero-downtime rolls matter more here than direct binding, and they will
+      # matter far more for jarvis-commerce — the money path must never have a
+      # window where it is not listening. Postgres and redis keep host mode:
+      # single replica, stop-first, no roll to protect.
+      - target: 8900
+        published: 8900
+        protocol: tcp
+        mode: ingress
+    deploy:
+      # Scale HORIZONTALLY, single-worker per replica. Multiple in-process
+      # uvicorn workers put every gauge in a per-worker registry, which is why
+      # hermes_scan_last_success_timestamp alternated between two values 1.5
+      # days apart across scrapes and its alert could not be trusted.
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+      restart_policy:
+        condition: any
+        delay: 15s
+      update_config:
+        order: start-first
+        failure_action: rollback
+        delay: 10s
+      rollback_config:
+        order: start-first
+
+  # -------------------------------------------------------------------------
+  # jarvis-commerce — THE MONEY PATH
+  #
+  # Same image as core, different ASGI app, and — the point — a SEPARATELY
+  # PINNED VERSION. Rebuilding the image for core feature work does not touch
+  # this service until someone edits docker/COMMERCE_VERSION, which is a
+  # deliberate act that runs the journey tests first.
+  #
+  # C5, from the analysis: Pimlico's payment path was repeatedly rolled by
+  # unrelated changes and has still never processed a real order.
+  #
+  # ⚠️ Port 8904 is NOT published. There is nothing to receive until a real
+  # offer exists (HT-005), and an unreachable webhook endpoint is safer than a
+  # reachable one nobody needs. Going live means: nginx vhost + certbot for the
+  # webhook hostname, JPD_GHL_WEBHOOK_SECRET set on BOTH sides, then re-probe.
+  commerce:
+    image: jarvis/core:v4
+    command: ["uvicorn", "jarvis.commerce_app:app", "--host", "0.0.0.0",
+              "--port", "8904", "--workers", "1"]
+    # ⚠️ MUST override the image's HEALTHCHECK. The Dockerfile's probes :8900
+    # (core's port); commerce listens on :8904. Inheriting it produces a service
+    # that works perfectly and is declared unhealthy forever — swarm kills and
+    # restarts it on a loop, which reads as a crash loop and is not one.
+    # Any service reusing this image with a different port must do the same.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8904/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    environment:
+      JPD_SERVICE: jarvis-commerce
+      JPD_ENV: production
+      JPD_PG_HOST: postgres
+      JPD_PG_PORT: "5432"
+      JPD_PG_USER: jarvis
+      JPD_PG_DB: jarvis
+      JPD_PG_PASSWORD_FILE: /run/secrets/jarvis_pg_password
+      JPD_REDIS_URL: "redis://:${JARVIS_REDIS_PASSWORD}@redis:6379/0"
+      JPD_PACKAGE_ROOT: /app
+      JPD_ARTIFACT_DIR: /app/data/artifacts
+      # The stub provider accepts a publicly-known secret. commerce_app REFUSES
+      # TO START if this is truthy while JPD_ENV=production.
+      JPD_ENABLE_STUB_PROVIDER: "false"
+      # GHL — DEC-002: same tenant, same Stripe account, NEW STORE for JPD.
+      # 🔴 Declared on core, commerce AND console. The console needs them because
+      # `jpd` prefers that container (C7), so `jpd commerce contract-test` runs
+      # THERE — and without credentials its probe fails and `record_probe` walks
+      # a perfectly healthy provider toward dormant. Observed 2026-08-09:
+      # fail_streak reached 2 purely because the CLI could not see the key.
+      JPD_GHL_API_KEY: "${JPD_GHL_API_KEY:-CHANGE_ME}"
+      JPD_GHL_LOCATION_ID: "${JPD_GHL_LOCATION_ID:-}"
+      JPD_GHL_STORE_ID: "${JPD_GHL_STORE_ID:-CHANGE_ME}"
+      JPD_GHL_CHECKOUT_BASE: "${JPD_GHL_CHECKOUT_BASE:-}"
+      JPD_GHL_WEBHOOK_SECRET: "${JPD_GHL_WEBHOOK_SECRET:-CHANGE_ME}"
+      JPD_UNSUBSCRIBE_BASE: "${JPD_UNSUBSCRIBE_BASE:-}"
+      # Buyer-delivery channel credentials — notify.py sends from THIS service.
+      JPD_MAILGUN_KEY: "${JPD_MAILGUN_KEY:-}"
+      JPD_MAILGUN_DOMAIN: "${JPD_MAILGUN_DOMAIN:-}"
+    secrets:
+      - jarvis_pg_password
+    volumes:
+      - jarvis_artifacts:/app/data/artifacts
+      - type: bind
+        source: /opt/jarvis/checkpoints
+        target: /opt/jarvis/checkpoints
+    networks: [jarvis_net, jarvis_monitoring]
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+      restart_policy:
+        condition: any
+        delay: 15s
+      update_config:
+        order: start-first
+        failure_action: rollback
+        delay: 10s
+      rollback_config:
+        order: start-first
+
+  # -------------------------------------------------------------------------
+  # jarvis-console — THE OPERATOR SURFACE
+  #
+  # C7: when core is down you must still be able to see and act. Under Pimlico
+  # a hermes roll blinded the operator for ~90s and a real outage blinded them
+  # entirely, because the operator surface lived inside the thing that broke.
+  #
+  # This depends on postgres and Telegram only. It does not call core, does not
+  # import the step engine, and does not care whether core is running. A run
+  # blocked on a human task stays visible and answerable through a full core
+  # outage.
+  #
+  # NOTE the difference from `commerce`: console tracks core's version, because
+  # what protects it is being a SEPARATE PROCESS. Commerce is separately PINNED
+  # because what protects the money path is not being rolled at all. Two
+  # properties, two mechanisms — don't conflate them.
+  #
+  # 🔴 PORT 8905 IS NOT PUBLISHED, AND MUST NOT BE. Do not add a `ports:` block.
+  #
+  # The operator dashboard at /ui has NO AUTHENTICATION — it renders need
+  # titles, evidence, checkpoints and the whole build state to anyone who can
+  # open it. So it must never be listening on a public interface.
+  #
+  # ⚠️ `127.0.0.1:8905:8905` DOES NOT WORK HERE AND IS NOT A SAFE FALLBACK.
+  # Swarm publishes in INGRESS mode, and ingress DISCARDS the host-IP prefix:
+  # the short syntax silently becomes PublishMode ingress on 0.0.0.0. Measured
+  # 2026-08-08 — that exact line produced `LISTEN *:8905`, publicly reachable,
+  # because 8905 is not in SWARM_PORTS in /etc/pimlico-firewall.sh and therefore
+  # had no DROP policy either. It was live for ~3 minutes before removal.
+  # `mode: host` does not fix it; that binds 0.0.0.0 on the node as well.
+  #
+  # REACH THE DASHBOARD WITHOUT A PUBLIC PORT — pick either:
+  #   1. On the box:    jpd ui --out /tmp/jpd.html     (renders to a file)
+  #   2. From a laptop: ssh <host> 'jpd ui' > jpd.html && open jpd.html
+  #
+  # If it ever needs live remote access, that means AUTH IN FRONT OF IT plus an
+  # entry in SWARM_PORTS — not a wider bind.
+  console:
+    image: jarvis/core:v1
+    command: ["uvicorn", "jarvis.console_app:app", "--host", "0.0.0.0",
+              "--port", "8905", "--workers", "1"]
+    # MUST override the image's HEALTHCHECK, which probes core's :8900. Phase 1
+    # shipped commerce without this: the service worked perfectly, Docker called
+    # it unhealthy forever, and swarm restart-looped it.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8905/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    environment:
+      JPD_SERVICE: jarvis-console
+      JPD_ENV: production
+      # Shown in the dashboard header. Without it the page says "unknown", which
+      # is worse than useless when you are looking at it to find out what is
+      # actually deployed.
+      JPD_VERSION: "${JPD_VERSION:-unknown}"
+      JPD_PG_HOST: postgres
+      JPD_PG_PORT: "5432"
+      JPD_PG_USER: jarvis
+      JPD_PG_DB: jarvis
+      JPD_PG_PASSWORD_FILE: /run/secrets/jarvis_pg_password
+      JPD_REDIS_URL: "redis://:${JARVIS_REDIS_PASSWORD}@redis:6379/0"
+      JPD_PACKAGE_ROOT: /app
+      JPD_TELEGRAM_BOT_TOKEN: "${JPD_TELEGRAM_BOT_TOKEN:-CHANGE_ME}"
+      # 🔴 The CONSOLE needs these too, and that is not obvious.
+      #
+      # `jpd` prefers the console container (C7 — the CLI must survive a core
+      # outage). So `jpd connectors check` RUNS HERE. Without credentials its
+      # probes fail, and `record_probe` walks perfectly healthy connectors
+      # toward dormant — the operator tool actively degrading the health it
+      # reports. Observed: ollama/qdrant/anthropic showing "credentials absent"
+      # from a CLI check while working fine in core.
+      JPD_OLLAMA_URL: "${JPD_OLLAMA_URL:-}"
+      JPD_OLLAMA_API_KEY: "${JPD_OLLAMA_API_KEY:-CHANGE_ME}"
+      JPD_QDRANT_URL: "${JPD_QDRANT_URL:-}"
+      JPD_QDRANT_API_KEY: "${JPD_QDRANT_API_KEY:-CHANGE_ME}"
+      JPD_ANTHROPIC_API_KEY: "${JPD_ANTHROPIC_API_KEY:-CHANGE_ME}"
+      JPD_OPENROUTER_KEY: "${JPD_OPENROUTER_KEY:-CHANGE_ME}"
+      JPD_OPENROUTER_MODEL: "${JPD_OPENROUTER_MODEL:-}"
+      # GHL — DEC-002: same tenant, same Stripe account, NEW STORE for JPD.
+      # 🔴 Declared on core, commerce AND console. The console needs them because
+      # `jpd` prefers that container (C7), so `jpd commerce contract-test` runs
+      # THERE — and without credentials its probe fails and `record_probe` walks
+      # a perfectly healthy provider toward dormant. Observed 2026-08-09:
+      # fail_streak reached 2 purely because the CLI could not see the key.
+      JPD_GHL_API_KEY: "${JPD_GHL_API_KEY:-CHANGE_ME}"
+      JPD_GHL_LOCATION_ID: "${JPD_GHL_LOCATION_ID:-}"
+      JPD_GHL_STORE_ID: "${JPD_GHL_STORE_ID:-CHANGE_ME}"
+      JPD_GHL_CHECKOUT_BASE: "${JPD_GHL_CHECKOUT_BASE:-}"
+      JPD_GHL_WEBHOOK_SECRET: "${JPD_GHL_WEBHOOK_SECRET:-CHANGE_ME}"
+      JPD_UNSUBSCRIBE_BASE: "${JPD_UNSUBSCRIBE_BASE:-}"
+      # Same source/delivery credentials as core — C7: probes run wherever
+      # `jpd` runs, and that is usually this container.
+      JPD_YOUTUBE_API_KEY: "${JPD_YOUTUBE_API_KEY:-}"
+      JPD_REDDIT_CLIENT_ID: "${JPD_REDDIT_CLIENT_ID:-}"
+      JPD_REDDIT_CLIENT_SECRET: "${JPD_REDDIT_CLIENT_SECRET:-}"
+      JPD_MAILGUN_KEY: "${JPD_MAILGUN_KEY:-}"
+      JPD_MAILGUN_DOMAIN: "${JPD_MAILGUN_DOMAIN:-}"
+    secrets:
+      - jarvis_pg_password
+    volumes:
+      # Every service that can serve the `jpd` CLI needs this. The wrapper
+      # prefers the CONSOLE container (C7), so `jpd checkpoint render` runs
+      # here — and without the mount it writes to the container's ephemeral
+      # filesystem and REPORTS SUCCESS. A command that does nothing and says it
+      # worked is the exact failure class this platform exists to remove.
+      - type: bind
+        source: /opt/jarvis/checkpoints
+        target: /opt/jarvis/checkpoints
+      # 🔴 SAME LESSON, SECOND TIME. `jpd forge run` also executes here, and it
+      # writes ARTIFACTS — 12,759 words of generated product on the first run.
+      # Without this volume they land in the container's ephemeral filesystem,
+      # so commerce (which mounts the real volume) can never deliver them and
+      # `delivery.mint()` correctly refuses every token.
+      - jarvis_artifacts:/app/data/artifacts
+    networks: [jarvis_net, jarvis_monitoring]
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+      restart_policy:
+        condition: any
+        delay: 15s
+      update_config:
+        order: start-first
+        failure_action: rollback
+        delay: 10s
+      rollback_config:
+        order: start-first
+
+  # -------------------------------------------------------------------------
+  # jarvis-prometheus + alertmanager — JPD's OWN monitoring
+  #
+  # Its own instance on jarvis_monitoring. Nothing here touches pimlico_*,
+  # which is the same isolation rule the rest of this stack follows.
+  #
+  # C2: the rules are GENERATED from observability/alerts.py by
+  # `jpd alerts render`, so they can be diffed and reviewed. Pimlico's alert
+  # rules exist ONLY as a docker config with no source file — `docker cp`
+  # returns 0 bytes and the only way to read them is `docker exec cat`.
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+      - --web.enable-lifecycle
+    volumes:
+      - type: bind
+        source: /opt/jarvis/platform/docker/prometheus/prometheus.yml
+        target: /etc/prometheus/prometheus.yml
+        read_only: true
+      - type: bind
+        source: /opt/jarvis/platform/docker/prometheus/rules
+        target: /etc/prometheus/rules
+        read_only: true
+      - jarvis_prom_data:/prometheus
+    networks: [jarvis_net, jarvis_monitoring]
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+      restart_policy:
+        condition: any
+        delay: 15s
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    volumes:
+      - type: bind
+        source: /opt/jarvis/platform/docker/prometheus/alertmanager.yml
+        target: /etc/alertmanager/alertmanager.yml
+        read_only: true
+      - jarvis_am_data:/alertmanager
+    networks: [jarvis_net, jarvis_monitoring]
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+      restart_policy:
+        condition: any
+        delay: 15s

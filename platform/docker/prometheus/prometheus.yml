@@ -1,0 +1,44 @@
+# JPD Prometheus. Its OWN instance on jarvis_monitoring — nothing here touches
+# pimlico_*, which is the same isolation rule the rest of the platform follows.
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+  external_labels:
+    platform: jpd
+
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+scrape_configs:
+  # Each service is scraped by its SERVICE NAME on the overlay. Swarm DNS
+  # round-robins across replicas; every replica runs --workers 1 so each one
+  # reports the same service-level value rather than a per-worker slice.
+  - job_name: jarvis-core
+    dns_sd_configs:
+      - names: ['tasks.core']
+        type: A
+        port: 8900
+    metrics_path: /metrics
+
+  - job_name: jarvis-commerce
+    dns_sd_configs:
+      - names: ['tasks.commerce']
+        type: A
+        port: 8904
+    metrics_path: /metrics
+
+  - job_name: jarvis-console
+    dns_sd_configs:
+      - names: ['tasks.console']
+        type: A
+        port: 8905
+    metrics_path: /metrics
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ['127.0.0.1:9090']

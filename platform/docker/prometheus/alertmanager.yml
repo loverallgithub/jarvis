@@ -1,0 +1,18 @@
+# Routing is deliberately minimal for now: everything to a webhook that the
+# console turns into a Telegram card in #alerts. A route that fans out to
+# channels nobody reads is how eleven Pimlico rules became four broken ones.
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: jpd-console
+  group_by: ['alertname', 'severity']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+receivers:
+  - name: jpd-console
+    webhook_configs:
+      - url: 'http://console:8905/alerts'
+        send_resolved: true

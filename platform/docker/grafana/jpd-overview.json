@@ -1,0 +1,186 @@
+{
+  "title": "JPD — platform overview",
+  "uid": "jpd-overview",
+  "tags": ["jpd"],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1m",
+  "time": { "from": "now-7d", "to": "now" },
+  "description": "Trends for JarvisProductDevelopment. Point-in-time state lives on the console dashboard at /ui — this board is for CHANGE OVER TIME, which is the one thing a rendered page cannot show. Every panel is a single series with its own axis; there is deliberately no dual-axis panel anywhere.",
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Platform up",
+      "description": "jpd_up from core and jpd_console_up from the console. Both must be 1; the console is what reports an outage, so its own liveness is not optional.",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        { "expr": "jpd_up", "legendFormat": "core", "refId": "A" },
+        { "expr": "jpd_console_up", "legendFormat": "console", "refId": "B" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "DOWN", "color": "#d03b3b", "index": 0 } } },
+            { "type": "value", "options": { "1": { "text": "up", "color": "#0ca30c", "index": 1 } } }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "#d03b3b", "value": null }, { "color": "#0ca30c", "value": 1 } ] }
+        }
+      },
+      "options": { "colorMode": "value", "graphMode": "none", "textMode": "value_and_name", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Connectors live",
+      "description": "Live of total. The realistic ceiling is ~15 of 33 — several seeded rows describe things with no API to connect to, so 'not 33' is not a fault.",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [ { "expr": "jpd_connectors_live", "legendFormat": "live", "refId": "A" } ],
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "#2a78d6" } } },
+      "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Telegram streams configured",
+      "description": "6/6 means HT-001 is complete. Anything less means cards are being posted into General or not at all.",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [ { "expr": "jpd_telegram_streams_configured", "legendFormat": "configured", "refId": "A" } ],
+      "fieldConfig": {
+        "defaults": {
+          "max": 6, "min": 0,
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "#d03b3b", "value": null }, { "color": "#fab219", "value": 1 }, { "color": "#0ca30c", "value": 6 } ] }
+        }
+      },
+      "options": { "colorMode": "value", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Open human tasks",
+      "description": "The blocking queue. Non-zero is not an error — it means the platform is waiting on a person, which is the design.",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [ { "expr": "jpd_human_tasks_open", "legendFormat": "open", "refId": "A" } ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "#0ca30c", "value": null }, { "color": "#fab219", "value": 1 }, { "color": "#ec835a", "value": 5 } ] }
+        }
+      },
+      "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Connectors live over time",
+      "description": "The number that should only ever go up as credentials land. A step DOWN is a regression worth explaining.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        { "expr": "jpd_connectors_live", "legendFormat": "live", "refId": "A" },
+        { "expr": "jpd_connectors_regressed", "legendFormat": "regressed", "refId": "B" }
+      ],
+      "fieldConfig": {
+        "defaults": { "custom": { "lineWidth": 2, "fillOpacity": 0, "showPoints": "never", "pointSize": 8 } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "live" }, "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor": "#2a78d6" } } ] },
+          { "matcher": { "id": "byName", "options": "regressed" }, "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor": "#eb6834" } } ] }
+        ]
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "none" } }
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Signals harvested (cumulative)",
+      "description": "Discovery input. Flat means no connector is yielding — check the harvest heartbeat before assuming the sources are dry.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [ { "expr": "jpd_signals_total", "legendFormat": "signals", "refId": "A" } ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "#2a78d6" },
+          "custom": { "lineWidth": 2, "fillOpacity": 0, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": { "showLegend": false }, "tooltip": { "mode": "single" } }
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Telegram poll cycles",
+      "description": "Rate of poller cycles by result. This is the liveness signal the log cannot give you — poll_once logs nothing on an idle cycle, so a silent log is NOT a dead poller. A flat 'ok' line here is.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [ { "expr": "rate(jpd_console_poll_cycles_total[5m])", "legendFormat": "{{result}}", "refId": "A" } ],
+      "fieldConfig": {
+        "defaults": { "custom": { "lineWidth": 2, "fillOpacity": 0, "showPoints": "never" }, "unit": "reqps" },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "ok" }, "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor": "#2a78d6" } } ] },
+          { "matcher": { "id": "byName", "options": "error" }, "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor": "#d03b3b" } } ] }
+        ]
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Oldest open human task (age)",
+      "description": "Age of the oldest unanswered task. A task that ages past its TTL expires; Pimlico once left an approval unanswered for five days because it was buried in a single undifferentiated stream.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [ { "expr": "jpd_human_tasks_open_by_age", "legendFormat": "oldest", "refId": "A" } ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "#eb6834" },
+          "custom": { "lineWidth": 2, "fillOpacity": 0, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": { "showLegend": false }, "tooltip": { "mode": "single" } }
+    },
+
+    {
+      "id": 20,
+      "type": "timeseries",
+      "title": "Runs started (cumulative)",
+      "description": "Pipeline activity. Paired with orphaned runs below it — an orphan is a run whose lease expired without reaching a terminal state.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        { "expr": "jpd_runs_total", "legendFormat": "runs", "refId": "A" },
+        { "expr": "jpd_orphaned_runs", "legendFormat": "orphaned", "refId": "B" }
+      ],
+      "fieldConfig": {
+        "defaults": { "custom": { "lineWidth": 2, "fillOpacity": 0, "showPoints": "never" } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "runs" }, "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor": "#1baf7a" } } ] },
+          { "matcher": { "id": "byName", "options": "orphaned" }, "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor": "#d03b3b" } } ] }
+        ]
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 21,
+      "type": "timeseries",
+      "title": "Synthetic alert-test age",
+      "description": "Days since each alert rule's synthetic test last fired. An alert rule that has never been PROVEN to fire is a rule you are trusting on faith.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [ { "expr": "jpd_alert_synthetic_age_days", "legendFormat": "{{rule}}", "refId": "A" } ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "d",
+          "custom": { "lineWidth": 2, "fillOpacity": 0, "showPoints": "never" },
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "#0ca30c", "value": null }, { "color": "#fab219", "value": 7 }, { "color": "#d03b3b", "value": 30 } ] }
+        }
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } }
+    }
+  ]
+}

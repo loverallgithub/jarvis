@@ -1,0 +1,21 @@
+# jarvis-core — pinned, because "it built last week" is not a guarantee.
+#
+# Pimlico's browser-agent Dockerfile stopped building entirely when
+# `python:3.12-slim` floated to a newer Debian and `libasound2` was renamed to
+# `libasound2t64`. The running image was no longer reproducible from its own
+# Dockerfile, discovered only when an urgent fix needed to ship. Everything
+# here is pinned and the base image names its Debian release.
+
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+asyncpg==0.30.0
+redis==5.2.1
+structlog==24.4.0
+prometheus-client==0.21.1
+httpx==0.28.1
+python-dateutil==2.9.0.post0
+
+# tests run INSIDE the deployed image (10-ARCHITECTURE §10: contract tests run
+# in the container, against the real service) so the test deps ship with it.
+pytest==8.3.4
+pytest-asyncio==0.25.0

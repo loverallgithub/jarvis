@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Run the jpd CLI inside a running jarvis container, so the operator uses the
+# EXACT binary the services use. Pimlico had host scripts that drifted from
+# container code and diagnosed the wrong version for weeks.
+#
+# 🔴 C7: try CONSOLE FIRST, then core, then commerce.
+#
+# The console is the operator surface and is deliberately the service least
+# likely to be down. Preferring core would mean that when core is broken —
+# exactly when you need to inspect state and unblock work — the CLI is broken
+# too. All three run the same image and share one database, so any of them can
+# serve the command.
+set -euo pipefail
+
+for svc in console core commerce; do
+  cid=$(docker ps -q --filter "label=com.docker.swarm.service.name=jarvis_${svc}" \
+        --filter "status=running" | head -1)
+  if [[ -n "$cid" ]]; then
+    exec docker exec -i "$cid" jpd "$@"
+  fi
+done
+
+echo "no running jarvis container (tried console, core, commerce)" >&2
+echo "  docker service ls --filter name=jarvis" >&2
+exit 1

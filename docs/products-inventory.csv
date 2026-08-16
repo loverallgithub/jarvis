@@ -1,0 +1,60 @@
+Product,Category,API?,Auth,Docs URL,Verified,Live Credential?,JPD Role,Priority,Notes
+Databar,Research/Enrichment,Yes,x-apikey,docs.databar.ai/api-reference/introduction,2026-07-20 200,No,"Company-voice enrichment (A5); competitor data (B1)",P1,"160+ providers. REST + Python SDK + MCP. Best research fit."
+you.com Research,Research,Yes,Bearer,api.you.com,2026-07-20,No,"Competitive capture (B1); willingness-to-pay (B3)",P1,"lite = $0.012/call. $100 free credit. Highest-value unwired tool."
+TubeOnAI,Discovery/Authority,Unverified,Unknown,none found,2026-08-07 api host real (200 root / 404 nonsense),No,"Authority-source transport accelerator (A1c)",P1,"api.tubeonai.com discriminates paths = real API. NO published docs. Ships DORMANT until contract_test passes."
+YouTube Data API v3,Discovery/Authority,Yes,API key,developers.google.com/youtube/v3,Standard,No,"Authority harvest (A1b)",P0,"Needs Google Cloud project. Runbook HT-002."
+GoHighLevel,Commerce/CRM,Yes,Private Integrations key,highlevel.stoplight.io,2026-08-07 live,Yes,"Offers/checkout/contacts. NEW STORE for JPD",P0,"Tenant co-tenanted with unrelated business - filter all queries."
+Stripe,Commerce,Yes,Bearer,stripe.com/docs/api,Standard,Via GHL,"Payment provider (same account as Pimlico)",P0,"Decision 2026-08-07: same account, new GHL store."
+OpenRouter,LLM,Yes,Bearer,openrouter.ai/docs,2026-08-07 live,Yes,"All generation (E2), extraction (A1b)",P0,"limit:15/day cap. usage_weekly $0.045."
+ElevenLabs,Media/TTS,Yes,xi-api-key,elevenlabs.io/docs,2026-07-31 live,Yes,"Audio deliverables",P3,"Creator plan, 300k chars/mo. voice_id REQUIRED."
+Mailgun,Delivery/Email,Yes,Basic,documentation.mailgun.com,2026-07-31 delivered,Yes,"Transactional + fallback buyer email (G4)",P1,"mg.pimlicoservices.com. Key rotated."
+SuperCool,Media/Video,Yes,OAuth2.1+PKCE via MCP,MCP/SSE,2026-07-31 live,Yes,"Showcase video (F4)",P2,"~544 credits/8s clip MEASURED (docs claim 68 - wrong 8x)."
+WebinarKit,Marketing,Partial,API key,webinarkit.com,2026-07-31 live,Yes,"Registration only (P4.3)",P2,"CANNOT create webinars or upload video via API - UI only."
+Success.ai,Outreach,Yes,x-api-key,success.ai,2026-07-31 live,Yes,"Cold email (F6)",P2,"Header is x-api-key NOT Bearer. Throttle enforced in workflow."
+Getlead,Lead sourcing,Yes,Bearer JWT,app.getle.ad (internal API),2026-07-31 live,Yes,"Prospect search (F6)",P2,"getle.ad NOT getlead.ad. Internal API, no contract, may change."
+Content360,Social,No,Browser,none,2026-07-31 posting verified,Yes,"Social distribution (F6)",P3,"UI automation only. Selectors verified 2026-07-31."
+Instantly,Outreach,Gated,Bearer,instantly.ai,2026-07-20,Yes,"Cold email alternative",P4,"API gated to Hypergrowth $97/mo. Growth key cannot work."
+Thoughtly,Voice,Unverified,x-api-token+team_id,docs.thoughtly.com/developers,2026-07-20 200,Yes,"Dormant - no consuming code",P4,"AppSumo reviewers report API actions broken on LTD tiers."
+Sintra,Content,No,Browser (BLOCKED),none,2026-08-07 Cloudflare-blocked,Yes,"HUMAN connector via Telegram #sintra (F3)",P1,"Blocked from this VPS IP. Caused the LinkedIn incident. NEVER auto-publish."
+Skool,Discovery/Community,No,Browser,none,Not tested,No,"Highest-intent pain source (A1b)",P2,"No public API. Runbook HT-003."
+AltText.ai,SEO,Yes,X-API-Key,alttext.ai/apidocs,2026-07-20 200,No,"Image alt text for sales pages",P3,
+Odin AI,Automation,Yes,x-api-key + x-api-secret,learn.getodin.ai,2026-07-20 200,No,"Unassigned",P4,"Needs BOTH key and secret."
+Hippo Video,Media,Yes,email+api_key -> token,help.hippovideo.io,2026-07-20 200,No,"Video hosting + analytics",P3,
+Foxly,Attribution,Yes,api-key,help.foxlyme.com,2026-07-20 200,No,"Trackable links = attribution (G6)",P2,"Attribution is how gate calibration becomes data-driven."
+pxl.to,Attribution,Yes,Bearer,help.pxl.to/docs/api-requests,2026-07-20 200,No,"Short links + QR + analytics",P3,"Separate company from Foxly."
+DMARC Report,Deliverability,Yes,Token,docs.dmarcreport.com/api,2026-07-20 200,No,"Email deliverability monitoring",P3,
+Subscribr,Content,Gated,Bearer,subscribr.ai/api/docs/reference/ai,2026-07-20,No,"YouTube scripts",P4,"Gated to paid Automation/Scale - LTD likely excluded."
+Fliki,Media,Gated,Bearer,developer.fliki.ai/docs/intro,2026-07-20,No,"Text-to-video + TTS",P4,"Docs state Enterprise privilege + approval form."
+Periodix,Outreach,Yes,Bearer,docs.actions.periodix.net,2026-07-20 200,No,"LinkedIn outreach",P4,"Separately metered $10-49/mo - NOT in the LTD."
+Plai,Ads,Unverified,X-API-Key,plai-public-api.web.app,2026-07-20,No,"Not planned",P4,"docs.plai.io 404s. Creative mgmt not campaign launch."
+Reoon,Email verify,Yes,Query param,reoon.com,Not tested,No,"Verify voice emails before outreach (F5b)",P2,"Key is a QUERY PARAM - never log full request URLs."
+Spiritme,DEAD,No,-,-,2026-07-20 shut down 2025-09-03,No,DO NOT USE,X,"Domain 301s to a Vietnamese sports-streaming site."
+Augmental Learning,DEAD,No,-,-,2026-07-20 NXDOMAIN,No,DO NOT USE,X,
+BlogHunch,DEAD,No,-,-,2026-07-20 NXDOMAIN,No,DO NOT USE,X,
+RankAtom,DEAD,No,-,-,company shut 2025-04-30,No,DO NOT USE,X,
+TopicMojo,DEAD,No,-,-,removed from Pimlico 2026-07-21,No,DO NOT USE,X,"Was making real calls before removal."
+SuperCopy.ai,Manual-only,No,UI,-,2026-07-20,No,"Human task card",P4,
+Taja,Manual-only,No,UI,-,2026-07-20,No,"Human task card",P4,
+Maekersuite,Manual-only,No,UI,-,2026-07-20,No,"Human task card",P4,
+StoryBlaze,Manual-only,No,UI,-,2026-07-20,No,"Human task card",P4,"Inbound-to-WordPress only."
+Katalist,Manual-only,No,UI,-,2026-07-20,No,"Human task card",P4,
+Magic Bookifier,Manual-only,No,UI,-,2026-07-20,No,"Human task card",P4,
+Jupitrr,Manual-only,No,UI,-,2026-07-20,No,"Human task card",P4,
+Nytro SEO,Manual-only,No,UI,-,2026-07-20,No,"Human task card",P4,"'API' is marketing for a JS snippet."
+WebSite Auditor,Manual-only,No,Desktop,-,2026-07-20,No,"Human task card",P4,"Desktop software."
+SpiderNow,Manual-only,No,UI,-,2026-07-20,No,"Human task card",P4,
+TruConversion,Manual-only,No,UI,-,2026-07-20,No,"Human task card",P4,
+Intellifluence,Manual-only,No,UI,-,2026-07-20,No,"Human task card",P4,
+Adsbot,Manual-only,No,UI,-,2026-07-20,No,"Human task card",P4,
+KingSumo,Manual-only,No,Webhooks/Zapier,-,2026-07-20,No,"Human task card",P4,
+QR Diffusion,Manual-only,No,UI,-,2026-07-20,No,"Human task card",P4,
+Vzy,Manual-only,No,UI,-,2026-07-20,No,"Human task card",P4,
+Steppit,Manual-only,No,Zapier-only,-,2026-07-20,No,"Human task card",P4,"Right actions, but Zapier in the payment->delivery path is unacceptable."
+Wope,Manual-only,No,UI,-,2026-07-20,No,"Human task card",P4,
+KWHero,Manual-only,No,UI,-,2026-07-20,No,"Human task card",P4,
+Biteplay,Manual-only,No,UI,-,2026-07-20,No,"Human task card",P4,"MISCATEGORISED elsewhere: it is YouTube ads research, not video generation."
+MarkCopy,Unverified,Claimed,?,apidocs.markcopy.ai (fails to connect),2026-07-20,No,"Needs vendor email",P4,
+Steve.AI,Unverified,Claimed,?,none published,2026-07-20,No,"Needs vendor email",P4,
+Synthesys AI Studio,Unverified,Claimed,?,none published,2026-07-20,No,"Needs vendor email",P4,
+Slice Knowledge,Unverified,Claimed,?,none published,2026-07-20,No,"Needs vendor email",P4,
+Textfocus,Unverified,Claimed,?,none published,2026-07-20,No,"Needs vendor email",P4,
