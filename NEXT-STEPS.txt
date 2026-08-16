@@ -1,0 +1,109 @@
+JPD — OPERATOR NEXT STEPS (written 2026-08-16)
+==============================================
+Four tasks, in the order that unblocks the most first. Commands prefixed
+with $ run on this VPS. In a Claude Code session, prefix them with ! instead.
+
+
+1. LIFT THE ANTHROPIC SPEND CAP  (~2 minutes — do this first)
+-------------------------------------------------------------
+The "You have reached your specified API usage limits" error is a
+SELF-IMPOSED cap in your own console, not an Anthropic-side block.
+
+  a. Org-level:  https://console.anthropic.com/settings/limits
+     -> raise or remove the monthly spend limit.
+  b. Per-key:    https://console.anthropic.com/settings/keys
+     -> open the key JPD uses; if it has its own monthly spend limit,
+        raise that too (the org change alone is not enough).
+
+  Verify:
+    $ /opt/jarvis/bin/jpd connectors check anthropic     # expect: live
+
+  Then re-run the factual verification that the cap blocked (no
+  regeneration, ~14 cheap LLM calls per need):
+    $ /opt/jarvis/bin/jpd forge reverify 14
+    $ /opt/jarvis/bin/jpd forge reverify 13
+
+
+2. YOUTUBE DATA API KEY  (free, ~10 min, no card — unblocks 7 connectors)
+-------------------------------------------------------------------------
+Full runbook: /opt/jarvis/runbooks/HT-002-youtube-data-api-key.md
+
+  a. https://console.cloud.google.com -> Select a project -> New Project.
+     Name: jarvis-product-development
+  b. APIs & Services -> Library -> search "YouTube Data API v3" -> ENABLE.
+     (Do not skip. A key without this returns a 403 that looks exactly
+     like a bad key.)
+  c. APIs & Services -> Credentials -> Create Credentials -> API key.
+     The key starts with "AIza".
+  d. RESTRICT the key: API restrictions -> Restrict key ->
+     YouTube Data API v3. Leave application restrictions = None.
+
+  Install (replace AIza... with your real key):
+    $ printf 'JPD_YOUTUBE_API_KEY=%s\n' 'AIza...' >> /opt/jarvis/platform/docker/.env
+    $ chmod 600 /opt/jarvis/platform/docker/.env
+    $ docker service update --env-add JPD_YOUTUBE_API_KEY='AIza...' jarvis_core
+    $ docker service update --env-add JPD_YOUTUBE_API_KEY='AIza...' jarvis_console
+  (--env-add is required: restarting a service does NOT re-read the .env file.)
+
+  Then set each channel's handle — read it off the channel's own URL
+  (youtube.com/@Handle). DO NOT guess from display names; a wrong handle
+  returns empty results, not an error. Channels needed:
+    Alex Hormozi, Leila Hormozi, Codie Sanchez,
+    Liam Ottley, Liam Evans, Jack Roberts
+  Paste the six handles into a Claude session (it will prepare the SQL), or
+  use the UPDATE template in the HT-002 runbook.
+
+  Verify:
+    $ /opt/jarvis/bin/jpd connectors check youtube_data_v3   # expect: live
+    $ /opt/jarvis/bin/jpd connectors harvest yt_alex_hormozi # expect: >0 signals
+    $ /opt/jarvis/bin/jpd connectors                         # expect: 10 live -> 17
+
+
+3. REDDIT OAUTH  (fixes the connector with 866 recorded failures)
+-----------------------------------------------------------------
+Reddit blocks this datacenter IP for anonymous requests; OAuth is the fix.
+
+  a. Log into Reddit -> https://www.reddit.com/prefs/apps
+  b. Bottom of the page: "create another app"
+       type:          script
+       name:          jarvis-jpd
+       redirect uri:  http://localhost:8080   (required by the form, unused)
+  c. After creating:
+       client ID  = the short string directly under the app name
+       secret     = the field labelled "secret"
+
+  Install (same pattern as above):
+    $ printf 'JPD_REDDIT_CLIENT_ID=%s\n'     'PASTE_ID'     >> /opt/jarvis/platform/docker/.env
+    $ printf 'JPD_REDDIT_CLIENT_SECRET=%s\n' 'PASTE_SECRET' >> /opt/jarvis/platform/docker/.env
+    $ docker service update --env-add JPD_REDDIT_CLIENT_ID='PASTE_ID' --env-add JPD_REDDIT_CLIENT_SECRET='PASTE_SECRET' jarvis_core
+    $ docker service update --env-add JPD_REDDIT_CLIENT_ID='PASTE_ID' --env-add JPD_REDDIT_CLIENT_SECRET='PASTE_SECRET' jarvis_console
+
+  NOTE: the reddit connector is currently a stub that raises with a reason.
+  Once the creds are installed, tell Claude "implement the reddit OAuth
+  connector" — it is a code change + tests + deploy (~30 min).
+
+
+4. MAILGUN  (only needed to actually EMAIL buyers — nothing blocks today)
+-------------------------------------------------------------------------
+market.launch refused for lawful-basis reasons, not for lack of Mailgun.
+When you want real buyer email:
+
+  a. Sign up at https://www.mailgun.com
+  b. Sending -> Domains -> Add your sending domain
+     (requires adding two DNS records at your registrar; the sandbox domain
+      works for testing but only sends to pre-authorized addresses)
+  c. Settings -> API Keys -> copy the private API key
+  d. Install as JPD_MAILGUN_KEY using the same .env + --env-add pattern.
+
+
+CONTEXT / STATE (2026-08-16)
+----------------------------
+- v78 deployed; scheduler timer live (15-min ticks).
+- Need 13 sales page: PUBLISHABLE (3 tiers, 100% cited).
+- Need 14: artifacts built, awaiting `forge reverify 14` after cap lift.
+- Needs 9-12 are duplicates kept promoted by your decision — the scheduler
+  will spend ~$1.50/each researching them on upcoming ticks. To stop that:
+  park them (ask Claude, or UPDATE needs SET status='parked' WHERE id IN (9,10,11,12);)
+- Session branch: session/2026-08-16-scheduler-and-carveout (commit 11ce60d).
+  Run /ultrareview in Claude Code to review it.
+- Full state: /opt/jarvis/checkpoints/RECOVERY-2026-08-16-post-deploy.md
