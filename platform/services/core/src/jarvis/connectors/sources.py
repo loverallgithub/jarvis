@@ -1044,8 +1044,12 @@ class Reddit(HttpSource):
 
     @staticmethod
     def _creds() -> tuple[str, str]:
-        return (os.environ.get("JPD_REDDIT_CLIENT_ID", ""),
-                os.environ.get("JPD_REDDIT_CLIENT_SECRET", ""))
+        def usable(name: str) -> str:
+            value = os.environ.get(name, "").strip()
+            return "" if not value or value == "CHANGE_ME" else value
+
+        return (usable("JPD_REDDIT_CLIENT_ID"),
+                usable("JPD_REDDIT_CLIENT_SECRET"))
 
     async def _token(self, c: httpx.AsyncClient) -> str:
         cid, secret = self._creds()
@@ -1053,7 +1057,11 @@ class Reddit(HttpSource):
                          auth=(cid, secret), data={"grant_type": "client_credentials"})
         if r.status_code != 200:
             raise ConnectorError(f"reddit oauth token -> {r.status_code}")
-        tok = r.json().get("access_token")
+        try:
+            body = r.json()
+        except ValueError:
+            raise ConnectorError("reddit oauth token response is not JSON") from None
+        tok = body.get("access_token")
         if not tok:
             raise ConnectorError("reddit oauth response carried no access_token")
         return tok
@@ -1115,6 +1123,10 @@ class Reddit(HttpSource):
                                       profile_url=f"https://www.reddit.com/user/{author}")
                         if author and author != "[deleted]" else None,
                         raw={"subreddit": sub, "ups": d.get("ups")}))
+                    if len(out) >= limit:
+                        break
+                if len(out) >= limit:
+                    break
         return HarvestResult(self.name, out, f"{len(subs)} subreddits via oauth")
 
 
