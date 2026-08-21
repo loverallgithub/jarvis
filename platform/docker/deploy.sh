@@ -108,12 +108,59 @@ CURRENT_COMMERCE="$(docker service inspect "${STACK}_commerce" \
 if [[ "$CURRENT_COMMERCE" != "jarvis/core:${COMMERCE_VERSION}" ]]; then
   echo "==> commerce would move (${CURRENT_COMMERCE:-none} -> jarvis/core:${COMMERCE_VERSION})"
   echo "    running JOURNEY TESTS — blocking"
-  if ! docker run --rm --network "$NET" \
-      -e JPD_TEST_PG_DSN="postgresql://jarvis:${JARVIS_PG_PASSWORD}@postgres:5432/jarvis_test" \
+  : "${JARVIS_PG_PASSWORD:?JARVIS_PG_PASSWORD must be set in .env}"
+
+  # On a first deployment neither the swarm overlay nor its postgres service
+  # exists yet. The old path nevertheless tried `--network jarvis_jarvis_net`,
+  # so the mandatory journey gate made a clean install impossible. Use the
+  # deployed test database for upgrades; otherwise create a disposable bridge
+  # and postgres container whose only database is recognisably a test DB.
+  JOURNEY_NET="$NET"
+  JOURNEY_HOST="postgres"
+  JOURNEY_CONTAINER=""
+  JOURNEY_TEMP_NET=""
+  if ! docker network inspect "$NET" >/dev/null 2>&1 \
+     || ! docker service inspect "${STACK}_postgres" >/dev/null 2>&1; then
+    JOURNEY_TEMP_NET="${STACK}_journey_$$_net"
+    JOURNEY_CONTAINER="${STACK}_journey_$$_postgres"
+    echo "    no deployed database; starting isolated ${JOURNEY_CONTAINER}"
+    docker network create "$JOURNEY_TEMP_NET" >/dev/null
+    docker run -d --name "$JOURNEY_CONTAINER" --network "$JOURNEY_TEMP_NET" \
+      -e POSTGRES_USER=jarvis -e POSTGRES_PASSWORD="$JARVIS_PG_PASSWORD" \
+      -e POSTGRES_DB=jarvis_test \
+      postgres:16-alpine >/dev/null
+    JOURNEY_NET="$JOURNEY_TEMP_NET"
+    JOURNEY_HOST="$JOURNEY_CONTAINER"
+    ready=0
+    for _ in $(seq 1 60); do
+      if docker exec "$JOURNEY_CONTAINER" pg_isready -U jarvis -d jarvis_test \
+           >/dev/null 2>&1; then
+        ready=1; break
+      fi
+      sleep 1
+    done
+    if [[ "$ready" -ne 1 ]]; then
+      docker logs "$JOURNEY_CONTAINER" >&2 || true
+      docker rm -f "$JOURNEY_CONTAINER" >/dev/null 2>&1 || true
+      docker network rm "$JOURNEY_TEMP_NET" >/dev/null 2>&1 || true
+      echo "    FAIL: isolated journey-test postgres never became ready" >&2
+      exit 1
+    fi
+  fi
+
+  journey_rc=0
+  docker run --rm --network "$JOURNEY_NET" \
+      -e JPD_TEST_PG_DSN="postgresql://jarvis:${JARVIS_PG_PASSWORD}@${JOURNEY_HOST}:5432/jarvis_test" \
       -e JPD_PACKAGE_ROOT=/app \
       --entrypoint python "jarvis/core:${COMMERCE_VERSION}" \
       -m pytest /app/tests/journey /app/tests/unit/test_pricing.py \
-                /app/tests/unit/test_provider_contract.py -q -p no:cacheprovider; then
+                /app/tests/unit/test_provider_contract.py -q -p no:cacheprovider \
+    || journey_rc=$?
+  if [[ -n "$JOURNEY_CONTAINER" ]]; then
+    docker rm -f "$JOURNEY_CONTAINER" >/dev/null
+    docker network rm "$JOURNEY_TEMP_NET" >/dev/null
+  fi
+  if [[ "$journey_rc" -ne 0 ]]; then
     echo "    FAIL: journey tests are red — refusing to roll the money path" >&2
     exit 1
   fi

@@ -78,9 +78,10 @@ Reddit blocks this datacenter IP for anonymous requests; OAuth is the fix.
     $ docker service update --env-add JPD_REDDIT_CLIENT_ID='PASTE_ID' --env-add JPD_REDDIT_CLIENT_SECRET='PASTE_SECRET' jarvis_core
     $ docker service update --env-add JPD_REDDIT_CLIENT_ID='PASTE_ID' --env-add JPD_REDDIT_CLIENT_SECRET='PASTE_SECRET' jarvis_console
 
-  NOTE: the reddit connector is currently a stub that raises with a reason.
-  Once the creds are installed, tell Claude "implement the reddit OAuth
-  connector" — it is a code change + tests + deploy (~30 min).
+  The Reddit connector already implements the OAuth client-credentials flow.
+  After installing the credentials, verify it before harvesting:
+    $ /opt/jarvis/bin/jpd connectors check reddit          # expect: live
+    $ /opt/jarvis/bin/jpd connectors harvest reddit        # expect: >0 signals
 
 
 4. MAILGUN  (only needed to actually EMAIL buyers — nothing blocks today)
